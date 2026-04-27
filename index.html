@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Задачи</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:15px;min-height:100vh}
+.app{max-width:420px;margin:0 auto;padding:20px 14px 40px}
+h1{font-size:22px;font-weight:500;margin-bottom:3px}
+.sub{font-size:13px;color:#888;margin-bottom:16px}
+.notif-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid #e0e0d8;background:#fafaf7;margin-bottom:18px;font-size:13px;color:#666}
+.notif-bar button{margin-left:auto;font-size:12px;padding:5px 12px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.section-title{font-size:11px;font-weight:500;color:#999;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.tasks{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.task{display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;border:1px solid #e5e5df;background:#fff}
+.task.done{opacity:.45}
+.task.done .task-name{text-decoration:line-through}
+.check{width:22px;height:22px;border-radius:50%;border:1.5px solid #ccc;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.check.on{background:#1D9E75;border-color:#1D9E75}
+.check.on::after{content:'';display:block;width:9px;height:7px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.task-body{flex:1;min-width:0}
+.task-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-time{font-size:12px;color:#999;margin-top:2px}
+.del{background:none;border:none;cursor:pointer;color:#bbb;font-size:20px;line-height:1;flex-shrink:0;padding:0 2px}
+.del:hover{color:#e24b4a}
+.empty{text-align:center;padding:28px 0;color:#aaa;font-size:13px}
+.form{background:#fff;border:1px solid #e0e0d8;border-radius:12px;padding:14px}
+.form input[type=text]{width:100%;font-size:14px;padding:9px 11px;border-radius:8px;border:1px solid #e0e0d8;background:#fafaf7;margin-bottom:10px;color:#1a1a1a}
+.form input:focus{outline:none;border-color:#aaa}
+.row{display:flex;gap:8px}
+.row input[type=time]{flex:1;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid #e0e0d8;background:#fafaf7;color:#1a1a1a}
+.btn{padding:8px 18px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;font-size:14px}
+.btn.green{background:#1D9E75;border-color:#1D9E75;color:#fff}
+.btn.green:hover{background:#0F6E56}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e1f5ee;color:#0F6E56;font-size:11px;font-weight:500;margin-left:5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Задачи</h1>
+  <div class="sub" id="date-str"></div>
+  <div class="notif-bar" id="nbar">
+    <span id="ntxt">Разреши уведомления</span>
+    <button id="nbtn" onclick="askNotif()">Включить</button>
+  </div>
+  <div class="section-title">Сегодня <span class="badge" id="cnt">0</span></div>
+  <div class="tasks" id="tlist"></div>
+  <div class="empty" id="empty" style="display:none">Задач нет. Добавьте первую ↓</div>
+  <div class="section-title" style="margin-bottom:10px">Новая задача</div>
+  <div class="form">
+    <input type="text" id="iname" placeholder="Медитация, зал, встреча…" maxlength="80" onkeydown="if(event.key==='Enter')add()">
+    <div class="row">
+      <input type="time" id="itime">
+      <button class="btn green" onclick="add()">Добавить</button>
+    </div>
+  </div>
+</div>
+<script>
+const D=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const M=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const n=new Date();
+document.getElementById('date-str').textContent=`${D[n.getDay()]}, ${n.getDate()} ${M[n.getMonth()]}`;
+
+let tasks=JSON.parse(localStorage.getItem('tasks_pwa')||'[]');
+let timers={};
+
+function save(){localStorage.setItem('tasks_pwa',JSON.stringify(tasks));}
+
+function add(){
+  const name=document.getElementById('iname').value.trim();
+  if(!name)return;
+  const time=document.getElementById('itime').value;
+  tasks.push({id:Date.now().toString(),name,time,done:false});
+  document.getElementById('iname').value='';
+  document.getElementById('itime').value='';
+  save();render();scheduleAll();
+}
+
+function toggle(id){const t=tasks.find(x=>x.id===id);if(t)t.done=!t.done;save();render();}
+function del(id){if(timers[id]){clearTimeout(timers[id]);delete timers[id];}tasks=tasks.filter(x=>x.id!==id);save();render();}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+function render(){
+  const l=document.getElementById('tlist');
+  document.getElementById('cnt').textContent=tasks.filter(t=>!t.done).length;
+  if(!tasks.length){l.innerHTML='';document.getElementById('empty').style.display='block';return;}
+  document.getElementById('empty').style.display='none';
+  const s=[...tasks].sort((a,b)=>(!a.time&&!b.time)?0:!a.time?1:!b.time?-1:a.time.localeCompare(b.time));
+  l.innerHTML=s.map(t=>`<div class="task${t.done?' done':''}">
+    <div class="check${t.done?' on':''}" onclick="toggle('${t.id}')"></div>
+    <div class="task-body">
+      <div class="task-name">${esc(t.name)}</div>
+      ${t.time?`<div class="task-time">${t.time}</div>`:''}
+    </div>
+    <button class="del" onclick="del('${t.id}')">×</button>
+  </div>`).join('');
+}
+
+function scheduleAll(){
+  Object.values(timers).forEach(clearTimeout);timers={};
+  tasks.filter(t=>!t.done&&t.time).forEach(t=>{
+    const[h,m]=t.time.split(':').map(Number);
+    const fire=new Date();fire.setHours(h,m,0,0);
+    const ms=fire-Date.now();
+    if(ms>0&&ms<86400000)timers[t.id]=setTimeout(()=>notify(t),ms);
+  });
+}
+
+function notify(t){
+  if(Notification.permission==='granted')
+    new Notification('Напоминание',{body:t.name,icon:'icon-192.png',badge:'icon-192.png',vibrate:[200,100,200]});
+  delete timers[t.id];
+}
+
+function askNotif(){
+  Notification.requestPermission().then(p=>{
+    const bar=document.getElementById('nbar');
+    const txt=document.getElementById('ntxt');
+    const btn=document.getElementById('nbtn');
+    if(p==='granted'){txt.textContent='Уведомления включены ✓';btn.style.display='none';bar.style.borderColor='#5DCAA5';}
+    else{txt.textContent='Уведомления отклонены — разреши в настройках браузера';btn.style.display='none';}
+  });
+}
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+if(Notification.permission==='granted'){
+  document.getElementById('ntxt').textContent='Уведомления включены ✓';
+  document.getElementById('nbtn').style.display='none';
+  document.getElementById('nbar').style.borderColor='#5DCAA5';
+}
+
+render();scheduleAll();
+</script>
+</body>
+</html>
