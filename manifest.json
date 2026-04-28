@@ -1,7 +1,8 @@
 {
   "name": "Задачи",
   "short_name": "Задачи",
-  "start_url": "/",
+  "start_url": "/tasks1/",
+  "skope": "/tasks1/", 
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
